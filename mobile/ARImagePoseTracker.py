@@ -284,30 +284,45 @@ for i in range(1, len(img_ls)):
         match_tuple = (x_1, x_2, R_n1[i], T_n1[i])
         feature_map.setdefault(m.queryIdx, []).append(match_tuple)
 
-    # Calculate x_1 and x_2.
-    # cx = intrinsics[0][2]
-    # cy = intrinsics[1][2]
-    # fx = intrinsics[0][0]
-    # fy = intrinsics[1][1]
-    # points1 = np.float32([keypoints1[m.queryIdx].pt for m in matches])
-    # points2 = np.float32([keypoints2[m.trainIdx].pt for m in matches])
-    # x_1 = np.column_stack((  1325 x 3
-        # np.divide(points1[:, 0] - cx, fx),
-        # np.divide(points1[:, 1] - cy, fy),
-        # np.ones(len(points1))
-    # ))
-    # x_2 = np.column_stack((  1325 x 3
-        # np.divide(points2[:, 0] - cx, fx),
-        # np.divide(points2[:, 1] - cy, fy),
-        # np.ones(len(points2))
-    # ))
-    # E = np.cross(Tx1, Rx1, axisa=0, axisb=0)  3 x 3
-    # result = (x_2 @ E @ x_1.T).diagonal()
-    # inlier_mask = np.absolute(result) < threshold
-    # return inlier_mask;
-
 # ------------- Step 7: Compute feature tracks -------------
 
 # Filter out features with < 3 images (apart from image 1)
 filtered_feature_map = {k:v for k,v in feature_map.items() if len(v) >= 3}
-print(filtered_feature_map)
+
+# Scratch
+# queryKey = list(filtered_feature_map.keys())[0]
+# print("query =", queryKey)
+# ansLs = filtered_feature_map[queryKey]
+# print("len =", len(ansLs))
+# x_1, x_2, R, T = ansLs[0]
+# print("x_1 =", x_1)
+# print("x_2 =", x_2)
+# print("try to compute shit...")
+# print(np.cross(x_2, R @ x_1))
+# print(np.cross(x_2, T))
+
+# ------- Step 8: Compute depth for all features with at least 3 observations  -------
+
+n_tuples = sum([len(tuple_ls) for tuple_ls in filtered_feature_map.values()])
+n_row = n_tuples * 3
+n_col = len(filtered_feature_map) + 1
+M = np.zeros((n_row, n_col))
+r = 0
+for i, queryIdx in enumerate(filtered_feature_map):
+    for x_1, x_2, R, T in filtered_feature_map[queryIdx]:
+        xRx = np.cross(x_2, R @ x_1)
+        xT = np.cross(x_2, T)
+        M[r:r+3, i] = xRx
+        M[r:r+3, n_col - 1] = xT
+        r += 3
+
+# print(M)
+W, U, Vt = cv2.SVDecomp(M)
+depths = Vt[-1, :] / Vt[-1, -1]
+
+# ---- Step 9: Compute 3D position of tracked features in image ----
+
+depths_mat = np.tile(depths[:-1], (3,1))
+x_1_ls = np.array([tuple_ls[0][0] for tuple_ls in filtered_feature_map.values()])
+feature_pos = np.multiply(x_1_ls, depths_mat.T)
+
