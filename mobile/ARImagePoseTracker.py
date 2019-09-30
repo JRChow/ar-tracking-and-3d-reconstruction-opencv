@@ -122,6 +122,39 @@ def calc_rotation_and_translation(img,
                                           imagePoints)
     return ret, R, T
 
+
+def FilterByEpipolarConstraint(intrinsics, matches,
+                               keypoints1, keypoints2,
+                               Rx1, Tx1,
+                               threshold=0.01):
+    """
+    Takes in a camera intrinsic matrix; a set of matches between two images,
+    a set of points in each image, and a rotation and translation between
+    the images, and a threshold parameter.
+    Return an array of 0 (outlier, incorrect match) and 1 (inlier) for each point.
+    """
+    # Calculate x_1 and x_2.
+    cx = intrinsics[0][2]
+    cy = intrinsics[1][2]
+    fx = intrinsics[0][0]
+    fy = intrinsics[1][1]
+    points1 = np.float32([keypoints1[m.queryIdx].pt for m in matches])
+    points2 = np.float32([keypoints2[m.trainIdx].pt for m in matches])
+    x_1 = np.column_stack((  # 1325 x 3
+        np.divide(points1[:, 0] - cx, fx),
+        np.divide(points1[:, 1] - cy, fy),
+        np.ones(len(points1))
+    ))
+    x_2 = np.column_stack((  # 1325 x 3
+        np.divide(points2[:, 0] - cx, fx),
+        np.divide(points2[:, 1] - cy, fy),
+        np.ones(len(points2))
+    ))
+    E = np.cross(Tx1, Rx1, axisa=0, axisb=0)  # 3 x 3
+    result = (x_2 @ E @ x_1.T).diagonal()
+    inlier_mask = (np.absolute(result) < threshold).astype(float)
+    return inlier_mask;
+
 # ------------------------ Load data ------------------------
 
 
@@ -152,6 +185,7 @@ ref_img_dir = "ref_img"
 ref_imgs = glob.glob(ref_img_dir + '/*.jpeg')
 R_nr = []
 T_nr = []
+img_ls = []
 for fname in ref_imgs:
     # read the image
     img = cv2.imread(fname)
@@ -163,6 +197,7 @@ for fname in ref_imgs:
     # apply region of interest cropping
     x, y, w, h = roi
     img = img[y:y + h, x:x + w]
+    img_ls.append(img)
     # compute rotation and translation
     ret, R, T = calc_rotation_and_translation(img,
                                               new_intrinsics,
@@ -196,4 +231,26 @@ for R_ir, T_ir in zip(R_nr, T_nr):
 
 # -------------------- Step 5: Compute feature matches between images --------------------
 
+img_0 = img_ls[0]
+img_0_keypoints, img_0_descriptors = \
+    feature_detector.detectAndCompute(img_0, None)
+for i in range(1, len(img_ls)):
+    img_i = img_ls[i]
+    img_i_keypoints, img_i_descriptors = \
+        feature_detector.detectAndCompute(img_i, None)
+    matches = matcher.match(img_0_descriptors, img_i_descriptors)
+    # Threshold: 0.01 (big) -> 0.001 (small) -> 0.005 (small) -> 0.075 (ok)
+    inlier_mask = FilterByEpipolarConstraint(new_intrinsics, matches,
+                                             img_0_keypoints, img_i_keypoints,
+                                             R_n1[i], T_n1[i],
+                                             threshold=0.005)
+    match_viz = cv2.drawMatches(img_0, img_0_keypoints,
+                                img_i, img_i_keypoints,
+                                matches, 0, matchesMask=inlier_mask,
+                                flags=cv2.DRAW_MATCHES_FLAGS_NOT_DRAW_SINGLE_POINTS)
+    cv2.imshow("Image 0 <=> Image {}".format(i), match_viz)
+    k = cv2.waitKey(0)
+    if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
+        # exit
+        break
 
