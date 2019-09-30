@@ -1,12 +1,13 @@
 import cv2
+import glob
 import numpy as np
 import CalibrationHelpers as calib
 
+# ------------------------ Helper functions ------------------------
 
-# This function is yours to complete
-# it should take in a set of 3d points and the intrinsic matrix
+# take in a set of 3d points and the intrinsic matrix
 # rotation matrix(R) and translation vector(T) of a camera
-# it should return the 2d projection of the 3d points onto the camera defined
+# return the 2d projection of the 3d points onto the camera defined
 # by the input parameters
 def ProjectPoints(points3d, new_intrinsics, R, T):
     extrinsic_params = np.column_stack((R, T))
@@ -90,82 +91,22 @@ def ComputePoseFromHomography(new_intrinsics, referencePoints, imagePoints):
     return False, None, None
 
 
-# Load the reference image that we will try to detect in the webcam
-reference = cv2.imread('ARTrackerImage.jpg', 0)
-RES = 480
-reference = cv2.resize(reference, (RES, RES))
-
-# create the feature detector. This will be used to find and describe locations
-# in the image that we can reliably detect in multiple images
-feature_detector = cv2.BRISK_create(octaves=5)
-# compute the features in the reference image
-reference_keypoints, reference_descriptors = \
-    feature_detector.detectAndCompute(reference, None)
-# make image to visualize keypoints
-# keypoint_visualization = cv2.drawKeypoints(
-# reference,reference_keypoints,outImage=np.array([]))
-keypoint_visualization = cv2.drawKeypoints(
-    reference, reference_keypoints, outImage=np.array([]),
-    flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
-)
-
-# display the image
-cv2.imshow("Keypoints", keypoint_visualization)
-# wait for user to press a key before proceeding
-# cv2.waitKey(0)
-
-# create the matcher that is used to compare feature similarity
-# Brisk descriptors are binary descriptors (a vector of zeros and 1s)
-# Thus hamming distance is a good measure of similarity
-matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-
-# Load the camera calibration matrix
-intrinsics, distortion, new_intrinsics, roi = \
-    calib.LoadCalibrationData('calibration_data')
-
-# initialize video capture
-# the 0 value should default to the webcam, but you may need to change this
-# for your camera, especially if you are using a camera besides the default
-cap = cv2.VideoCapture(0)
-
-while True:
-    # read the current frame from the webcam
-    ret, current_frame = cap.read()
-
-    # ensure the image is valid
-    if not ret:
-        print("Unable to capture video")
-        break
-
-    # undistort the current frame using the loaded calibration
-    current_frame = cv2.undistort(current_frame, intrinsics, distortion, None,
-                                  new_intrinsics)
-    # apply region of interest cropping
-    x, y, w, h = roi
-    current_frame = current_frame[y:y + h, x:x + w]
-
+def calc_rotation_and_translation(img,
+                                  new_intrinsics,
+                                  feature_detector, matcher,
+                                  reference_keypoints, reference_descriptors):
     # detect features in the current image
     current_keypoints, current_descriptors = \
-        feature_detector.detectAndCompute(current_frame, None)
-
+        feature_detector.detectAndCompute(img, None)
     # match the features from the reference image to the current image
     if (len(current_keypoints) == 0):
-        continue
-
-    matches = matcher.match(reference_descriptors, current_descriptors)
+        print("[ERROR] Feature detection failed for file " + fname)
+        return False, None, None
     # matches returns a vector where for each element there is a
-    # query index matched with a train index. I know these terms don't really
-    # make sense in this context, all you need to know is that for us the
-    # query will refer to a feature in the reference image and train will
-    # refer to a feature in the current image
-
-    # create a visualization of the matches between the reference and the
-    # current image
-    # match_visualization = cv2.drawMatches(reference, reference_keypoints, current_frame,
-    # current_keypoints, matches, 0,
-    # flags=cv2.DRAW_MATCHES_FLAGS_NOT_DRAW_SINGLE_POINTS)
-    # cv2.imshow('matches',match_visualization)
-
+    # query index matched with a train index.
+    # query will refer to a feature in the reference image
+    # train will refer to a feature in the current image
+    matches = matcher.match(reference_descriptors, current_descriptors)
     # set up reference points and image points
     # here we get the 2d position of all features in the reference image
     referencePoints = np.float32([reference_keypoints[m.queryIdx].pt
@@ -179,15 +120,63 @@ while True:
     # compute homography
     ret, R, T = ComputePoseFromHomography(new_intrinsics, referencePoints,
                                           imagePoints)
+    return ret, R, T
 
-    render_frame = current_frame
+# ------------------------ Load data ------------------------
+
+
+# Load the reference image that we will try to detect in the webcam
+reference = cv2.imread('../ARTrackerImage.jpg', 0)
+RES = 480
+reference = cv2.resize(reference, (RES, RES))
+
+# create the feature detector. This will be used to find and describe locations
+# in the image that we can reliably detect in multiple images
+feature_detector = cv2.BRISK_create(octaves=5)
+# compute the features in the reference image
+reference_keypoints, reference_descriptors = \
+    feature_detector.detectAndCompute(reference, None)
+
+# create the matcher that is used to compare feature similarity
+# Brisk descriptors are binary descriptors (a vector of zeros and 1s)
+# Thus hamming distance is a good measure of similarity
+matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+# Load the camera calibration matrix
+intrinsics, distortion, new_intrinsics, roi = \
+    calib.LoadCalibrationData('calibration_data')
+
+# --------- Step 3: Compute pose of camera w.r.t. reference image ---------
+
+ref_img_dir = "ref_img"
+ref_imgs = glob.glob(ref_img_dir + '/*.jpeg')
+for fname in ref_imgs:
+    # read the image
+    img = cv2.imread(fname)
+    # resize image by 0.25
+    img_resize_scale = 0.25
+    img = cv2.resize(img, (0, 0), fx=img_resize_scale, fy=img_resize_scale)
+    # undistort the image using the loaded calibration
+    img = cv2.undistort(img, intrinsics, distortion, None, new_intrinsics)
+    # apply region of interest cropping
+    x, y, w, h = roi
+    img = img[y:y + h, x:x + w]
+    # compute rotation and translation
+    ret, R, T = calc_rotation_and_translation(img,
+                                              new_intrinsics,
+                                              feature_detector, matcher,
+                                              reference_keypoints, reference_descriptors)
+    # render frame
+    render_frame = img
     if(ret):
         # compute the projection and render the cube
-        render_frame = renderCube(current_frame, new_intrinsics, R, T)
+        render_frame = renderCube(img, new_intrinsics, R, T)
 
     # display the current image frame
     cv2.imshow('frame', render_frame)
-    k = cv2.waitKey(1)
+    k = cv2.waitKey(0)
     if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
         # exit
         break
+
+# ----------------- Step 4: Compute relative pose between cameras -----------------

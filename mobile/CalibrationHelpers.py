@@ -34,7 +34,7 @@ def CalibrateCamera(directory,visualize=False):
     for fname in images:
         # read the image
         img = cv2.imread(fname)
-        # (Jingran) resize image by half
+        # (Jingran) resize image by 0.25
         scale = 0.25
         img = cv2.resize(img, (0, 0), fx=scale, fy=scale)
         # convert to grayscale (this simplifies corner detection)
