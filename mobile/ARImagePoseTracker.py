@@ -152,8 +152,27 @@ def FilterByEpipolarConstraint(intrinsics, matches,
     ))
     E = np.cross(Tx1, Rx1, axisa=0, axisb=0)  # 3 x 3
     result = (x_2 @ E @ x_1.T).diagonal()
-    inlier_mask = (np.absolute(result) < threshold).astype(float)
+    inlier_mask = np.absolute(result) < threshold
     return inlier_mask;
+
+
+def calc_x_1_and_x_2(intrinsics, p1, p2):
+    cx = intrinsics[0][2]
+    cy = intrinsics[1][2]
+    fx = intrinsics[0][0]
+    fy = intrinsics[1][1]
+    x_1 = np.array([
+        (p1[0] - cx) / fx,
+        (p1[1] - cy) / fy,
+        1
+    ])
+    x_2 = np.array([
+        (p2[0] - cx) / fx,
+        (p2[1] - cy) / fy,
+        1
+    ])
+    return x_1, x_2
+
 
 # ------------------------ Load data ------------------------
 
@@ -231,6 +250,8 @@ for R_ir, T_ir in zip(R_nr, T_nr):
 
 # -------------------- Step 5: Compute feature matches between images --------------------
 
+feature_map = {}
+
 img_0 = img_ls[0]
 img_0_keypoints, img_0_descriptors = \
     feature_detector.detectAndCompute(img_0, None)
@@ -239,18 +260,54 @@ for i in range(1, len(img_ls)):
     img_i_keypoints, img_i_descriptors = \
         feature_detector.detectAndCompute(img_i, None)
     matches = matcher.match(img_0_descriptors, img_i_descriptors)
+    # ------------- Step 6: Epipolar constraint -------------
     # Threshold: 0.01 (big) -> 0.001 (small) -> 0.005 (small) -> 0.075 (ok)
     inlier_mask = FilterByEpipolarConstraint(new_intrinsics, matches,
                                              img_0_keypoints, img_i_keypoints,
                                              R_n1[i], T_n1[i],
                                              threshold=0.005)
-    match_viz = cv2.drawMatches(img_0, img_0_keypoints,
-                                img_i, img_i_keypoints,
-                                matches, 0, matchesMask=inlier_mask,
-                                flags=cv2.DRAW_MATCHES_FLAGS_NOT_DRAW_SINGLE_POINTS)
-    cv2.imshow("Image 0 <=> Image {}".format(i), match_viz)
-    k = cv2.waitKey(0)
-    if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
-        # exit
-        break
+    # Visualization
+    # match_viz = cv2.drawMatches(img_0, img_0_keypoints,
+                                # img_i, img_i_keypoints,
+                                # matches, 0, matchesMask=inlier_mask.astype(float),
+                                # flags=cv2.DRAW_MATCHES_FLAGS_NOT_DRAW_SINGLE_POINTS)
+    # cv2.imshow("Image 0 <=> Image {}".format(i), match_viz)
+    # k = cv2.waitKey(0)
+    # if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
+        # # exit
+        # break
+    filtered_matches = np.array(matches)[inlier_mask]
+    for m in filtered_matches:
+        x_1, x_2 = calc_x_1_and_x_2(new_intrinsics,
+                                    img_0_keypoints[m.queryIdx].pt,
+                                    img_i_keypoints[m.trainIdx].pt)
+        match_tuple = (x_1, x_2, R_n1[i], T_n1[i])
+        feature_map.setdefault(m.queryIdx, []).append(match_tuple)
 
+    # Calculate x_1 and x_2.
+    # cx = intrinsics[0][2]
+    # cy = intrinsics[1][2]
+    # fx = intrinsics[0][0]
+    # fy = intrinsics[1][1]
+    # points1 = np.float32([keypoints1[m.queryIdx].pt for m in matches])
+    # points2 = np.float32([keypoints2[m.trainIdx].pt for m in matches])
+    # x_1 = np.column_stack((  1325 x 3
+        # np.divide(points1[:, 0] - cx, fx),
+        # np.divide(points1[:, 1] - cy, fy),
+        # np.ones(len(points1))
+    # ))
+    # x_2 = np.column_stack((  1325 x 3
+        # np.divide(points2[:, 0] - cx, fx),
+        # np.divide(points2[:, 1] - cy, fy),
+        # np.ones(len(points2))
+    # ))
+    # E = np.cross(Tx1, Rx1, axisa=0, axisb=0)  3 x 3
+    # result = (x_2 @ E @ x_1.T).diagonal()
+    # inlier_mask = np.absolute(result) < threshold
+    # return inlier_mask;
+
+# ------------- Step 7: Compute feature tracks -------------
+
+# Filter out features with < 3 images (apart from image 1)
+filtered_feature_map = {k:v for k,v in feature_map.items() if len(v) >= 3}
+print(filtered_feature_map)
