@@ -200,8 +200,9 @@ intrinsics, distortion, new_intrinsics, roi = \
 
 # --------- Step 3: Compute pose of camera w.r.t. reference image ---------
 
-ref_img_dir = "ref_img"
-ref_imgs = glob.glob(ref_img_dir + '/*.jpeg')
+ref_img_dir = "ref_img/"
+obj = "bottle/"
+ref_imgs = glob.glob(ref_img_dir + obj + '*.jpeg')
 R_nr = []
 T_nr = []
 img_ls = []
@@ -231,7 +232,8 @@ for fname in ref_imgs:
         render_frame = renderCube(img, new_intrinsics, R, T)
 
     # display the current image frame
-    cv2.imshow('frame', render_frame)
+    # cv2.imshow('frame', render_frame)
+
     # k = cv2.waitKey(0)
     # if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
         # # exit
@@ -265,17 +267,19 @@ for i in range(1, len(img_ls)):
     inlier_mask = FilterByEpipolarConstraint(new_intrinsics, matches,
                                              img_0_keypoints, img_i_keypoints,
                                              R_n1[i], T_n1[i],
-                                             threshold=0.005)
+                                             threshold=0.1)
     # Visualization
-    # match_viz = cv2.drawMatches(img_0, img_0_keypoints,
-                                # img_i, img_i_keypoints,
-                                # matches, 0, matchesMask=inlier_mask.astype(float),
-                                # flags=cv2.DRAW_MATCHES_FLAGS_NOT_DRAW_SINGLE_POINTS)
-    # cv2.imshow("Image 0 <=> Image {}".format(i), match_viz)
-    # k = cv2.waitKey(0)
-    # if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
-        # # exit
-        # break
+    match_viz = cv2.drawMatches(img_0, img_0_keypoints,
+                                img_i, img_i_keypoints,
+                                matches, 0, matchesMask=inlier_mask.astype(float),
+                                flags=cv2.DRAW_MATCHES_FLAGS_NOT_DRAW_SINGLE_POINTS)
+    cv2.imshow("Image 0 <=> Image {}".format(i), match_viz)
+    k = cv2.waitKey(0)
+    if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
+        # exit
+        break
+
+    # Create feature track
     filtered_matches = np.array(matches)[inlier_mask]
     for m in filtered_matches:
         x_1, x_2 = calc_x_1_and_x_2(new_intrinsics,
@@ -325,4 +329,11 @@ depths = Vt[-1, :] / Vt[-1, -1]
 depths_mat = np.tile(depths[:-1], (3,1))
 x_1_ls = np.array([tuple_ls[0][0] for tuple_ls in filtered_feature_map.values()])
 feature_pos = np.multiply(x_1_ls, depths_mat.T)
+
+# ----- Step 10: Visualize sparse point cloud -----
+
+import open3d as o3d
+pcd = o3d.geometry.PointCloud()
+pcd.points = o3d.utility.Vector3dVector(feature_pos)
+o3d.visualization.draw_geometries([pcd])
 
