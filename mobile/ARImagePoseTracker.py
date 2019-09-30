@@ -150,6 +150,8 @@ intrinsics, distortion, new_intrinsics, roi = \
 
 ref_img_dir = "ref_img"
 ref_imgs = glob.glob(ref_img_dir + '/*.jpeg')
+R_nr = []
+T_nr = []
 for fname in ref_imgs:
     # read the image
     img = cv2.imread(fname)
@@ -166,6 +168,8 @@ for fname in ref_imgs:
                                               new_intrinsics,
                                               feature_detector, matcher,
                                               reference_keypoints, reference_descriptors)
+    R_nr.append(R)
+    T_nr.append(T)
     # render frame
     render_frame = img
     if(ret):
@@ -174,9 +178,22 @@ for fname in ref_imgs:
 
     # display the current image frame
     cv2.imshow('frame', render_frame)
-    k = cv2.waitKey(0)
-    if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
-        # exit
-        break
+    # k = cv2.waitKey(0)
+    # if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
+        # # exit
+        # break
 
 # ----------------- Step 4: Compute relative pose between cameras -----------------
+
+# R_n1[i] = R_nr[i] @ R_nr[0].T
+# T_n1[i] = T_nr[i] - R_nr[i] @ R_nr[0].T @ T_nr[0]
+
+R_n1 = []
+T_n1 = []
+for R_ir, T_ir in zip(R_nr, T_nr):
+    R_n1.append(R_ir @ R_nr[0].T)
+    T_n1.append(T_ir - R_ir @ R_nr[0].T @ T_nr[0])
+
+# -------------------- Step 5: Compute feature matches between images --------------------
+
+
