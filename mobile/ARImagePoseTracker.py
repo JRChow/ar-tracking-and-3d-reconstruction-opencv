@@ -202,8 +202,8 @@ intrinsics, distortion, new_intrinsics, roi = \
 
 ref_img_dir = "ref_img" + "/"
 # cd | bottle | keyboard | intel
-# obj = "cd" + "/"
-obj = "intel" + "/"
+obj = "cd" + "/"
+# obj = "intel" + "/"
 ref_imgs = glob.glob(ref_img_dir + obj + '*.jpeg')
 R_nr = []
 T_nr = []
@@ -234,12 +234,12 @@ for fname in ref_imgs:
         render_frame = renderCube(img, new_intrinsics, R, T)
 
     # display the current image frame
-    # cv2.imshow('frame', render_frame)
+    cv2.imshow('frame', render_frame)
 
-    # k = cv2.waitKey(0)
-    # if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
-        # # exit
-        # break
+    k = cv2.waitKey(0)
+    if k == 27 or k == 113:  # 27, 113 are ascii for escape and q respectively
+        # exit
+        break
 
 # ----------------- Step 4: Compute relative pose between cameras -----------------
 
