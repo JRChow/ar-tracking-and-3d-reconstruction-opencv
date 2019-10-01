@@ -200,8 +200,10 @@ intrinsics, distortion, new_intrinsics, roi = \
 
 # --------- Step 3: Compute pose of camera w.r.t. reference image ---------
 
-ref_img_dir = "ref_img/"
-obj = "bottle/"
+ref_img_dir = "ref_img" + "/"
+# cd | bottle | keyboard | intel
+# obj = "cd" + "/"
+obj = "intel" + "/"
 ref_imgs = glob.glob(ref_img_dir + obj + '*.jpeg')
 R_nr = []
 T_nr = []
@@ -267,7 +269,7 @@ for i in range(1, len(img_ls)):
     inlier_mask = FilterByEpipolarConstraint(new_intrinsics, matches,
                                              img_0_keypoints, img_i_keypoints,
                                              R_n1[i], T_n1[i],
-                                             threshold=0.1)
+                                             threshold=0.04)
     # Visualization
     match_viz = cv2.drawMatches(img_0, img_0_keypoints,
                                 img_i, img_i_keypoints,
@@ -292,18 +294,6 @@ for i in range(1, len(img_ls)):
 
 # Filter out features with < 3 images (apart from image 1)
 filtered_feature_map = {k:v for k,v in feature_map.items() if len(v) >= 3}
-
-# Scratch
-# queryKey = list(filtered_feature_map.keys())[0]
-# print("query =", queryKey)
-# ansLs = filtered_feature_map[queryKey]
-# print("len =", len(ansLs))
-# x_1, x_2, R, T = ansLs[0]
-# print("x_1 =", x_1)
-# print("x_2 =", x_2)
-# print("try to compute shit...")
-# print(np.cross(x_2, R @ x_1))
-# print(np.cross(x_2, T))
 
 # ------- Step 8: Compute depth for all features with at least 3 observations  -------
 
