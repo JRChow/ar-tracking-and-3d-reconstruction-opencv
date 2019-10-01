@@ -1,4 +1,4 @@
-# ar-tracking-and-3d-reconstruction-opencv
+# AR Tracking and 3D Reconstruction with OpenCV
 
 
 ## Mobile
