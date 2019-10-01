@@ -91,7 +91,7 @@ def ComputePoseFromHomography(new_intrinsics, referencePoints, imagePoints):
 
 
 # Load the reference image that we will try to detect in the webcam
-reference = cv2.imread('ARTrackerImage.jpg', 0)
+reference = cv2.imread('../ARTrackerImage.jpg', 0)
 RES = 480
 reference = cv2.resize(reference, (RES, RES))
 
