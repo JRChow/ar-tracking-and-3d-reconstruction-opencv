@@ -1,5 +1,7 @@
 # AR Tracking and 3D Reconstruction with OpenCV
 
+Here is the [link](https://github.com/JRChow/ar-tracking-and-3d-reconstruction-opencv) to the GitHub repo. Please let me know if you cannot access it.
+
 ## Desktop
 
 The directory [`desktop/`](./desktop) contains code for AR tracking and cube rendering.
