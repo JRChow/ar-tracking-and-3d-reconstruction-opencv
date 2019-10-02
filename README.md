@@ -12,3 +12,7 @@ The directory [`mobile/`](./mobile) contains code for 3D reconstruction.
 
 - Image scaled to 0.25 of original size to speed up computation
 
+## Video
+
+[Here](https://youtu.be/eutTFT-QPuo) is a 2-min video about this project.
+
