@@ -6,7 +6,7 @@ The directory [`desktop/`](./desktop) contains code for AR tracking and cube ren
 
 ## Mobile
 
-The directory [`mobile/`](./mobile) contains code for 3D 3D reconstruction.
+The directory [`mobile/`](./mobile) contains code for 3D reconstruction.
 
 ### Note
 
